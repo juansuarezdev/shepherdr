@@ -21,7 +21,7 @@
       "global alt-shift-enter", "global alt-escape", "global ctrl-alt-left", "global ctrl-alt-down", "global ctrl-alt-up",
       "global ctrl-alt-right", "terminal ctrl-v"],
     "helpers": ["shepherdr"],
-    "uses_shipped": ["changes", "files", "workspace-chrome"]
+    "uses_shipped": ["agents", "changes", "files", "workspace-chrome"]
   },
   "addons": [
     { "id": "tasks", "title": "Tasks", "switch": false,
