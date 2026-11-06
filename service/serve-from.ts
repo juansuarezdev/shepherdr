@@ -106,7 +106,7 @@ try: port = int(json.load(open(os.path.expanduser("~/.herdr/shepherdr/service.js
 except Exception: port = 7788
 for hp, web in (s.get("Web") or {}).items():
     h = (web.get("Handlers") or {}).get("/shepherdr")
-    if h and h.get("Proxy") and not h["Proxy"].endswith(f":{port}"):
+    if h and h.get("Proxy") and not h["Proxy"].endswith((f":{port}", "/web.sock")):
         print(hp.rsplit(":", 1)[1], h["Proxy"])
 ' > "$f.tmp" || true
 if [ -s "$f.tmp" ]; then read port proxy < "$f.tmp"; printf '{"port":"%s","proxy":"%s","at":%s}\\n' "$port" "$proxy" "$(date +%s)" > "$f"

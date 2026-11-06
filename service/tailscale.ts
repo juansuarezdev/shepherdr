@@ -1,6 +1,6 @@
 // The tailnet side: who owns this machine, its name, and sharing /shepherdr privately with tailscale serve.
 // Never funnel: serving stops when Funnel is on for the port /shepherdr is served on.
-import { MOUNT } from "./paths.ts";
+import { MOUNT, WEB_SOCK } from "./paths.ts";
 
 export type Me = { login: string; name: string; dns: string; host: string };
 
@@ -55,21 +55,27 @@ export async function funnelAnywhere(): Promise<boolean> {
   try { return Object.values(JSON.parse(r.out || "{}").AllowFunnel ?? {}).some(Boolean); } catch { return false; }
 }
 
-/** Shares 127.0.0.1:<port> at https://<machine>/shepherdr. Refuses to replace /shepherdr when it points elsewhere. */
+/** This service's tailscale serve target: its unix socket (paths.ts WEB_SOCK). */
+export const TARGET = `unix:${WEB_SOCK}`;
+/** /shepherdr leads to this service: its socket, or 127.0.0.1:<port> as it was shared before the socket. */
+export const isOurs = (proxy: string | null, port?: number) =>
+  !!proxy && (proxy === TARGET || proxy.endsWith(WEB_SOCK) || (port !== undefined && proxy.replace(/\/$/, "") === `http://127.0.0.1:${port}`));
+
+/** Shares this service at https://<machine>/shepherdr, through its unix socket (an old 127.0.0.1 share of it moves
+ *  there). Refuses to replace /shepherdr when it points elsewhere. */
 export async function share(dns: string, port: number): Promise<string | null> {
   const now = await served(dns);
-  const ours = `http://127.0.0.1:${port}`;
   if (now.funnel) return "Funnel is on for this machine's HTTPS port: Shepherdr won't serve there";
-  if (now.proxy === ours) return null;
-  if (now.proxy) return `${MOUNT} is already shared to ${now.proxy}`;
-  const r = await run(["serve", "--bg", "--set-path", MOUNT, String(port)]);
+  if (now.proxy === TARGET || (now.proxy && now.proxy.endsWith(WEB_SOCK))) return null;
+  if (now.proxy && !isOurs(now.proxy, port)) return `${MOUNT} is already shared to ${now.proxy}`;
+  const r = await run(["serve", "--bg", ...(now.port ? [`--https=${now.port}`] : []), "--set-path", MOUNT, TARGET]);
   return r.ok ? null : "tailscale serve failed";
 }
 
 /** Stops sharing /shepherdr. port: only when it leads to this service (another one's share is left alone). */
 export async function unshare(dns: string, port?: number): Promise<void> {
   const now = await served(dns);
-  if (now.proxy && (port === undefined || now.proxy === `http://127.0.0.1:${port}`)) await run(["serve", `--https=${now.port ?? 443}`, "--set-path", MOUNT, "off"]);
+  if (now.proxy && (port === undefined || isOurs(now.proxy, port))) await run(["serve", `--https=${now.port ?? 443}`, "--set-path", MOUNT, "off"]);
 }
 
 /** What a move here set aside (shepherdr web serve-from --take-link: ~/.herdr/shepherdr/replaced-share.json), shared

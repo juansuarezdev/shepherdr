@@ -10,9 +10,11 @@ export type Pass = { ok: true; who: string; via: "tailnet" | "local" } | { ok: f
 
 const READS = new Set(["GET", "HEAD"]);
 
-export function gate(req: Request, g: Gate, socket = false, peerTrusted = false): Pass {
+// viaSocket: the request came on the service's unix socket (paths.ts WEB_SOCK), which only tailscaled and this user can
+// open: Tailscale is the caller, and it sends Host: localhost there with the machine's name in X-Forwarded-Host.
+export function gate(req: Request, g: Gate, socket = false, peerTrusted = false, viaSocket = false): Pass {
   const h = req.headers;
-  const host = (h.get("host") ?? "").toLowerCase();
+  const host = ((viaSocket ? h.get("x-forwarded-host") : h.get("host")) ?? "").toLowerCase();
   const login = h.get("tailscale-user-login");
   const write = socket || !READS.has(req.method);
   if (req.method === "OPTIONS") return { ok: false, status: 403, why: "no cross-site requests" };

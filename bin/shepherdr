@@ -992,7 +992,7 @@ def serve_check(root):
         p = subprocess.run([tailscale, "serve", "status", "--json"], capture_output=True, text=True)
         try:
             for web in (json.loads(p.stdout or "{}").get("Web") or {}).values():
-                if ((web.get("Handlers") or {}).get("/shepherdr") or {}).get("Proxy", "").endswith(f":{our_port(root)}"):
+                if ((web.get("Handlers") or {}).get("/shepherdr") or {}).get("Proxy", "").endswith((f":{our_port(root)}", "/web.sock")):
                     bad.append(f"/shepherdr is still shared from here while {host} serves it: two links")
         except ValueError:
             pass

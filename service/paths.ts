@@ -11,6 +11,10 @@ export const TOKEN = join(DATA, "token");         // local callers (the Herdr wi
 export const LOG = join(DATA, "service.log");
 export const PORT = Number(process.env.SHEPHERDR_PORT || 7788);
 export const MOUNT = "/shepherdr";                // tailscale serve --set-path; never funnel
+// tailscale serve's way in: a unix socket in DATA (0700), so only this user and root (tailscaled) can reach it, and a
+// request on it is from Tailscale without asking netstat who opened it (macOS 27's netstat shows other processes'
+// sockets to no program but a shell)
+export const WEB_SOCK = join(DATA, "web.sock");
 
 export function ensureData() {
   mkdirSync(DATA, { recursive: true, mode: 0o700 });

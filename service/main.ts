@@ -7,10 +7,10 @@
 //   SHEPHERDR_WEB=on|off           serve the web app and share it on the tailnet (default on)
 // Serve from (service/host.ts): one machine serves the web app and holds the shared data; on the others the service
 // reads and writes it there, keeps their settings in step (service/sync.ts) and doesn't share /shepherdr.
-import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync, rmSync, chmodSync } from "node:fs";
 import { join, normalize } from "node:path";
 import { randomBytes } from "node:crypto";
-import { DATA, SOCK, TOKEN, PORT, HOME, ensureData } from "./paths.ts";
+import { DATA, SOCK, TOKEN, PORT, HOME, WEB_SOCK, ensureData } from "./paths.ts";
 import { holdLock } from "./lock.ts";
 import { gate, localCaller, type Gate } from "./auth.ts";
 import { trustedPeer } from "./peer.ts";
@@ -541,9 +541,10 @@ async function doAction(body: any): Promise<Response> {
   } catch (err) { return new Response((err as Error).message, { status: 400 }); }
 }
 
-const server = Bun.serve<{ who: string }>({
-  hostname: "127.0.0.1",
-  port: PORT,
+// one app on two ways in: 127.0.0.1:PORT (this machine's callers, and tailscale serve as it was set up before) and
+// WEB_SOCK (tailscale serve now: a request there is from Tailscale)
+let tailnetServer: unknown = null;
+const app: Pick<Parameters<typeof Bun.serve<{ who: string }>>[0], "fetch" | "websocket"> = {
   async fetch(req, srv) {
     const url = new URL(req.url);
     const path = url.pathname.startsWith("/shepherdr/") ? url.pathname.slice(10) : url.pathname;
@@ -560,7 +561,8 @@ const server = Bun.serve<{ who: string }>({
     }
     const socket = path === "/api/ws" || path === "/api/terminal" || path === "/api/browser" || path === "/api/voice";
     const viaTailnet = req.headers.has("tailscale-user-login");
-    const pass = gate(req, g, socket, viaTailnet && trustedPeer(srv.requestIP(req)?.port, PORT));
+    const viaSocket = srv === tailnetServer;
+    const pass = gate(req, g, socket, viaTailnet && (viaSocket || trustedPeer(srv.requestIP(req)?.port, PORT)), viaSocket);
     if (!pass.ok) return new Response(pass.why, { status: pass.status });
     if (path === "/api/browser") {
       // a task's browser (2.1's Browser panel): this machine's tasks
@@ -748,11 +750,15 @@ const server = Bun.serve<{ who: string }>({
     message(ws, msg) { const d: any = ws.data; if (d.voice) d.bridge?.message(msg); else if (d.bridge) d.bridge.message(String(msg)); else live.message(ws, String(msg)); },
     close(ws) { const d: any = ws.data; if (d.bridge) d.bridge.end(); else live.leave(ws); },
   },
-});
+};
+const server = Bun.serve<{ who: string }>({ hostname: "127.0.0.1", port: PORT, ...app } as any);
+rmSync(WEB_SOCK, { force: true });
+tailnetServer = Bun.serve<{ who: string }>({ unix: WEB_SOCK, ...app } as any);
+chmodSync(WEB_SOCK, 0o600);
 
 console.log(`Shepherdr ${VERSION} on http://127.0.0.1:${server.port} (data ${DATA})${me && webOn() ? `, https://${me.dns}/shepherdr/` : ""}`);
 
 // the port is ours now: say where and this start's id (only this user can read it)
 writeFileSync(SERVICE_FILE, JSON.stringify({ port: server.port, id: SERVICE_ID, pid: process.pid, version: VERSION }) + "\n", { mode: 0o600 });
 
-for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => { server.stop(true); try { rmSync(SERVICE_FILE); } catch {} release(); process.exit(0); });
+for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => { server.stop(true); (tailnetServer as any)?.stop(true); try { rmSync(WEB_SOCK, { force: true }); } catch {} try { rmSync(SERVICE_FILE); } catch {} release(); process.exit(0); });

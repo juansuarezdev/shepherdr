@@ -71,3 +71,13 @@ describe("health's id only to this machine's callers (GitHub #635)", () => {
   test("not a browser page", () => expect(localCaller(local({ origin: "http://127.0.0.1:7788" }), 7788)).toBe(false));
   test("not by another port", () => expect(localCaller(local(), 7790)).toBe(false));
 });
+
+// tailscale serve to the unix socket: Host is localhost there, the machine's name comes in X-Forwarded-Host
+test("on the socket, the forwarded host is the host", async () => {
+  const { gate } = await import("./auth.ts");
+  const g = { owner: "me@x", dns: "box.tailnet.example", port: 7788, token: "t" };
+  const req = (h: Record<string, string>) => new Request("http://localhost/api/me", { headers: { host: "localhost", "tailscale-user-login": "me@x", ...h } });
+  expect(gate(req({ "x-forwarded-host": "box.tailnet.example" }), g, false, true, true)).toMatchObject({ ok: true, via: "tailnet" });
+  expect(gate(req({ "x-forwarded-host": "evil.example" }), g, false, true, true)).toMatchObject({ ok: false, status: 421 });
+  expect(gate(req({ "x-forwarded-host": "box.tailnet.example" }), g, false, true, false)).toMatchObject({ ok: false, status: 421 });
+});
