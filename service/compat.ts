@@ -331,7 +331,11 @@ export class Compat {
       const own = (s.tabs ?? []).find((t: any) => (t.terminals ?? []).includes(s.assistant) || (atLabel && (t.id === atLabel || t.id === `${s.machine}/${atLabel}`)));
       const assistantTab = { ...(own ? { id: own.id } : {}), name: named(own?.name) ? own.name : "Assistant", named: named(own?.name), state: s.assistant ? stateOf(ak) : "idle", live: !!s.assistant, ...(kindOfTerm(ak) ? { cli: kindOfTerm(ak) } : {}),
         ...(agentIn(ak) || kindOfTerm(ak) ? { agent: agentIn(ak)?.key ?? kindOfTerm(ak) } : {}) };
-      const name = spaceName(s, { home: s.machine ? null : HOME, repo: s.git?.name ?? null });
+      // named after where its first terminal is now, as the window names it (the core's cwd is where it started)
+      const first: any = (this as any).terminalsOf?.((s.tabs ?? [])[0]?.terminals?.[0]);
+      const now = first?.foreground?.cwd ?? null;
+      const moved = !!now && now !== s.folder;
+      const name = spaceName(s, { ...(moved ? { at: now } : {}), home: s.machine ? null : HOME, repo: moved ? null : s.git?.name ?? null });
       // what 3.0's pane header says under it: "Assistant · Claude Code" (just "Assistant" until it has started), and the
       // folder it works in, home shortened to ~
       const kind = s.assistant ? kindOfTerm((this as any).terminalsOf?.(s.assistant)) : null;
