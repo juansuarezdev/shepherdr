@@ -37,6 +37,7 @@ export const NAMES = {
   "tabs-tasks.newspace": () => "New space",
   "tabs-tasks.rename-tab": () => "Rename tab",
   "tabs-tasks.rename-space": () => "Rename space",
+  "workspace-status-chat.next-waiting": () => "Go to the agent that needs you",
   "chat.dictate": () => "Dictate",
   "chat.call": () => "Start a call",
   "chat.find": () => "Find in the chat",
@@ -53,7 +54,7 @@ export function groupOf(section, action) {
   if (/^tab\.|^tabs-tasks\.(close|rename-tab)$/.test(action)) return "Tabs";
   if (/^space\.|^tabs-tasks\.(newspace|rename-space)$/.test(action)) return "Spaces";
   if (/^pane\./.test(action)) return "Panes";
-  if (/^agent\./.test(action)) return "Agents";
+  if (/^agent\.|^workspace-status-chat\.next-waiting$/.test(action)) return "Agents";
   return "App";
 }
 

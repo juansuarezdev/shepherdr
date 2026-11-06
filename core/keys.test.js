@@ -14,7 +14,7 @@ test("keys as people read them, as the window's Keybinds shows them", () => {
 
 test("Shepherdr's keys.json grouped: the layout's own key replaces the global one, Alt+1–9 folds, Chat is its own group", () => {
   const g = grouped(flatKeys(repoKeys), { layout: "shepherdr" });
-  expect(g.map((x) => x.group)).toEqual(["Tabs", "Spaces", "Panes", "Terminal", "Chat", "App"]);
+  expect(g.map((x) => x.group)).toEqual(["Tabs", "Spaces", "Panes", "Agents", "Terminal", "Chat", "App"]);
   const row = (group, name) => g.find((x) => x.group === group)?.rows.find((r) => r.name === name);
   expect(row("Tabs", "Show tab 1–9").keys).toEqual(["Alt+1–9"]);
   expect(row("Tabs", "Close tab").keys).toEqual(["Ctrl+Shift+W"]);

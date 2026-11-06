@@ -19,6 +19,7 @@
       "herdr": {
         "mods": [
           "spaces-chat",
+          "agents-shepherdr",
           "workspace-chrome-shepherdr"
         ]
       },

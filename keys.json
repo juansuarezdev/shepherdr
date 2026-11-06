@@ -37,6 +37,7 @@
     "ctrl-shift-w": "tabs-tasks.close",
     "ctrl-shift-n": "tabs-tasks.newspace",
     "f2": "tabs-tasks.rename-tab",
-    "shift-f2": "tabs-tasks.rename-space"
+    "shift-f2": "tabs-tasks.rename-space",
+    "cmd-shift-j": "workspace-status-chat.next-waiting"
   }
 }

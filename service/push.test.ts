@@ -51,3 +51,18 @@ test("an agent's own alert, from its label", () => {
   const out = agentAlerts(terms, snap, (a) => (a === "t1" ? "sp1" : null), "/nonexistent");
   expect(out).toEqual([{ id: "x", at: 5, title: "tt-repo Assistant · Can't wait", body: "Look now", chat: "sp1", place: "sp1", notify: true }]);
 });
+
+// a plain agent in a Herdr tab alerts when it waits or finishes; tasks, Assistants and chats don't (alertsOf has them)
+test("plain agents alert once per wait and finish", async () => {
+  const { plainAgentAlerts } = await import("./push.ts");
+  const snap = { places: [{ id: "sp1", name: "code" }] };
+  const k = (address: string, status: any, labels: any = { "herdr.space": "sp1" }) =>
+    ({ address, state: "live", status, labels, program: { name: "Claude Code" }, title: "fix login" });
+  const out = plainAgentAlerts([
+    k("t1", "blocked"), k("t2", { state: "done" }), k("t3", "working"),
+    k("t4", "blocked", { "herdr.space": "sp1", "herdr.task": "x" }), k("t5", "blocked", {}), k("t6", "blocked"),
+  ], snap, (a) => (a === "t6" ? "chat" : null));
+  expect([...out.keys()]).toEqual(["agent:t1:blocked", "agent:t2:done"]);
+  expect(out.get("agent:t1:blocked")).toMatchObject({ title: "code · Claude Code · Needs you", body: "fix login", topic: "needs", place: "sp1", waits: true });
+  expect(out.get("agent:t2:done")).toMatchObject({ topic: "done" });
+});

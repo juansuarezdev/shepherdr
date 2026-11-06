@@ -4,7 +4,7 @@
 // goes to the first agent waiting (else the Tasks panel), Done and Working to their first agent.
 import { View, div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { theme, run, window, keys, shared } from "herdr";
+import { theme, run, window, keys, shared, nextCommand } from "herdr";
 import { spaces, agents, inRender } from "./live.js";
 import { items as needsYou, toAgent, showInbox } from "./inbox.js";
 import { countBadge, TEXT, RADIUS } from "./ui.js";
@@ -13,7 +13,32 @@ import { countBadge, TEXT, RADIUS } from "./ui.js";
 // given there, else its own.
 const machineName = (m) => (shared("spaces-chat")?.machines?.[m ?? ""]?.name) || (m ?? "This computer");
 
+// To the first agent that needs the person, else the first one done, else the Tasks panel.
+function goToWaiting() {
+  const first = needsYou().find((it) => it.terminal);
+  if (first) return toAgent(first.terminal);
+  const done = agents().find((a) => a.status === "done");
+  if (done) return toAgent(done.address);
+  showInbox();
+}
+
 export default class WorkspaceStatus extends View {
+  // "workspace-status-chat.next-waiting" (cmd-shift-j): to the agent that waits on the person (the first
+  // Needs you), else the first one done, else the Tasks panel. At most 5 s per wait, so a reload's old
+  // build ends at its next cx use.
+  init(_props, cx) {
+    cx.spawn(async (cx) => {
+      let cmd = null;
+      for (;;) {
+        cmd ??= nextCommand();
+        const c = await Promise.race([cmd, cx.sleep(5000)]);
+        if (c === undefined) continue;
+        cmd = null;
+        if (c === "next-waiting") inRender(() => goToWaiting());
+      }
+    });
+  }
+
   // The palette key as actually bound, not a hardcoded one; without a
   // binding the hint stays useful ("Commands") instead of lying.
   hint() {

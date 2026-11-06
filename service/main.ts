@@ -42,7 +42,7 @@ import { Settings, onWritten, PUSH, pushBody } from "./settings.ts";
 import { Secrets, SecretsHome } from "./secrets.ts";
 import { Agents } from "./agents.ts";
 import { Machines } from "./machines.ts";
-import { Push, alertsOf, agentAlerts } from "./push.ts";
+import { Push, alertsOf, agentAlerts, plainAgentAlerts } from "./push.ts";
 import { dictate, liveToken } from "./dictate.ts";
 import { sh, exec } from "./model.ts";
 import { folders, newSpace, newSpaceInfo } from "./spaces.ts";
@@ -128,6 +128,7 @@ let woke = new Set<string>();
 function alertNew(snap: any) {
   // their words, as the window's toasts: service/push.ts alertsOf
   const now = alertsOf(snap, woke);
+  for (const [k, a] of plainAgentAlerts(hub.terminals.values(), snap, chatOfAddress)) now.set(k, a);
   woke = new Set((snap.places ?? []).filter((p: any) => p.pilot?.on && (p.pilot.inflight || p.pilot.pending)).map((p: any) => p.id));
   if (alerted) for (const [k, a] of now) if (!alerted.has(k)) void push.send({ ...a, badge: (snap.needs?.length ?? 0) + (snap.tasks ?? []).filter((t: any) => t.status === "ready" && !t.archived).length, open: [...now.values()].filter((x) => x.waits).map((x) => x.tag) });
   alerted = new Set(now.keys());

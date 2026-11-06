@@ -80,6 +80,33 @@ export function agentAlerts(terminals: Iterable<any>, snap: any, chatOf: (addres
 }
 export const PROVIDER_BODY = "Write to it to carry on, or restart it.";
 
+/**
+ * Plain agents in a Herdr tab (a Claude Code or Codex you started yourself, not a task's worker nor an Assistant):
+ * "<space> · <agent> · Needs you" while one waits, "… · Finished" when one is done. Keyed by address and status, so
+ * each wait and each finish alerts once. Tasks and Assistants already alert through alertsOf.
+ */
+export function plainAgentAlerts(terminals: Iterable<any>, snap: any, chatOf: (address: string) => string | null): Map<string, Out> {
+  const out = new Map<string, Out>();
+  for (const k of terminals) {
+    if (k?.state !== "live") continue;
+    const st = typeof k.status === "object" ? k.status?.state : k.status;
+    if (st !== "blocked" && st !== "done") continue;
+    const l = k.labels ?? {};
+    if (!l["herdr.space"] || l["herdr.task"] || l["herdr.role"] || ["assistant", "coordinator"].includes(k.template) || chatOf(k.address)) continue;
+    const space = snap.places?.find((p: any) => p.id === l["herdr.space"]);
+    const who = [space?.name, k.program?.name ?? k.agent ?? "Agent"].filter(Boolean).join(" · ");
+    out.set(`agent:${k.address}:${st}`, {
+      title: T.clip(T.toastTitle(who, st === "blocked" ? T.NEEDS_YOU : T.FINISHED), 60),
+      body: T.clip(String(k.title || k.where || k.cwd || ""), 300),
+      tag: `agent:${k.address}`,
+      topic: st === "blocked" ? "needs" : "done",
+      ...(space ? { place: space.id } : {}),
+      ...(st === "blocked" ? { waits: true as const } : {}),
+    });
+  }
+  return out;
+}
+
 /** a device's subscription: what it is told about (none kept: what it got before it could choose) and the spaces it hears
  *  nothing from */
 type Sub = { endpoint: string; keys: { p256dh: string; auth: string }; device?: string; at: number; topics?: PushTopic[]; muted?: string[] };
