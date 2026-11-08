@@ -567,7 +567,7 @@
       "herdr": {
         "mods": [
           "coordinator",
-          "changes"
+          "changes-ai"
         ]
       },
       "web": {
