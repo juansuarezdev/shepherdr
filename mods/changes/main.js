@@ -265,9 +265,8 @@ export default class Changes extends View {
         .when(!this.open && this.files.length > 0, (e) => e.child(div().absolute().top(6).px(12).text_color(t.dim).child("Select a file to view its changes"))))
       .when(Boolean(this.note), (e) => e.child(div().px(10).pb(8).text_size(11).text_color(t.ansi1).child(this.note)))
       .child(h_flex().flex_none().p(10).gap(8).border_t(1).border_color(t.border)
-        .child(div().id("commit-message").relative().flex_1().min_w(0).h(32).rounded(8).border_1().border_color(this.typing ? t.accent : t.border).cursor_text().on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-          .child(div().absolute().inset_0().pl(10).pr(26).flex().items_center().child(Input.new(this.input).h_full().w_full().text_size(12).text_color(t.foreground)))
-          .child(div().absolute().right(4).top(4).size(24).flex().items_center().justify_center().rounded(6).text_color(canWrite ? t.muted : t.dim).when(canWrite, (e) => e.cursor_pointer().hover((s) => s.text_color(t.foreground))).on_click((_e, cx) => this.write(cx)).child(svg("mods/changes/sparkles.svg").size(14).when(this.writing, (el) => el.text_color(t.accent)))))
+        .child(div().id("commit-message").flex_1().min_w(0).h(32).px(10).flex().items_center().rounded(8).border_1().border_color(this.typing ? t.accent : t.border).cursor_text().on_mouse_down("left", (_e, cx) => cx.stop_propagation()).child(Input.new(this.input).h_full().text_size(12).text_color(t.foreground)))
+        .child(div().id("ai-commit").h(32).px(8).flex().items_center().gap(6).rounded(8).border_1().border_color(t.border).text_color(canWrite ? t.foreground : t.dim).text_size(12).when(canWrite, (e) => e.cursor_pointer().hover((s) => s.bg(t.hover))).on_click((_e, cx) => this.write(cx)).child(svg("mods/changes/sparkles.svg").size(14).when(this.writing, (el) => el.text_color(t.accent))).child(this.writing ? "…" : "AI"))
         .child(div().id("commit").h(32).px(14).flex().items_center().rounded(8).bg(enabled ? t.solid : t.raised).text_color(enabled ? t.solid_foreground : t.dim).text_size(12).when(enabled, (e) => e.cursor_pointer()).on_click((_e, cx) => this.commit(cx)).child(this.busy ? "Committing…" : "Commit")));
   }
 }
