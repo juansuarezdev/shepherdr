@@ -582,7 +582,8 @@
       },
       "service": [
         "actions.ts",
-        "agents.ts"
+        "agents.ts",
+        "commit-message.ts"
       ]
     },
     {

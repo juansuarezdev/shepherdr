@@ -7,7 +7,7 @@
 // heartbeat" follows it while the heartbeat is empty. Every word is core/menus.js's or core/confirm.js's, as the window's.
 // On a phone the tabs, the shown tab's menu and the + menu's items are in the header's ⋯.
 import clsx from 'clsx'
-import { PlayIcon } from '@heroicons/react/16/solid'
+import { PlayIcon, SparklesIcon } from '@heroicons/react/16/solid'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode, type WheelEvent } from 'react'
 import { attentionCounts } from '@client/attention.ts'
 import { openRole } from '@client/screens/Role.tsx'
@@ -647,17 +647,33 @@ function SpacePanel({ place, what }: { place: Place; what: 'files' | 'changes' }
   )
 }
 
-/** Herdr's Changes' commit box: "Commit message", Commit (everything, git add -A), "Commit failed: …" */
+/** Herdr's Changes' commit box: "Commit message", its ✨ (an agent writes it from the changes, in Conventional Commits),
+ *  Commit (everything, git add -A), "Commit failed: …" */
 function Commit({ place }: { place: Place }) {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [writing, setWriting] = useState(false)
   const [note, setNote] = useState('')
-  useEffect(() => { setMessage(''); setNote('') }, [place.id])
+  const box = useRef<HTMLInputElement>(null)
+  useEffect(() => { setMessage(''); setNote(''); setWriting(false) }, [place.id])
+  /** the box's ✨: the space's changes go to the agent CLI on its machine, its message comes back into the box */
+  const write = async () => {
+    if (writing) return
+    setWriting(true); setNote('')
+    try {
+      const r = (await act({ type: 'space-commit-message', place: place.id })) as { message?: string; error?: string }
+      if (r.error) throw new Error(r.error)
+      if (r.message) { setMessage(r.message); box.current?.focus() }
+    } catch (e) {
+      const m = (e as Error).message
+      setNote(m.startsWith('Writing a commit message') ? m : `No commit message written: ${m}`)
+    } finally { setWriting(false) }
+  }
   const go = async () => {
     if (!message.trim() || busy) return
     setBusy(true); setNote('')
     try {
-      const r = (await act({ type: 'space-commit', place: place.id, message } as never)) as { error?: string }
+      const r = (await act({ type: 'space-commit', place: place.id, message })) as { error?: string }
       if (r.error) throw new Error(r.error)
       setMessage('')
     } catch (e) {
@@ -669,8 +685,15 @@ function Commit({ place }: { place: Place }) {
     <>
       {note ? <p role="alert" className="px-3 pb-2 text-[0.75rem] text-need-fg">{note}</p> : null}
       <div className="flex shrink-0 items-center gap-2 border-t border-line p-2.5">
-        <input value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void go()} placeholder="Commit message" aria-label="Commit message"
-          className={`${field} h-8 min-w-0 flex-1 rounded-full bg-bg px-3 text-[0.8125rem] coarse:h-11`} />
+        <div className="relative min-w-0 flex-1">
+          <input ref={box} value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void go()} placeholder="Commit message" aria-label="Commit message"
+            className={`${field} h-8 w-full min-w-0 rounded-full bg-bg pr-9 pl-3 text-[0.8125rem] coarse:h-11 coarse:pr-12`} />
+          <button type="button" aria-label="Write the commit message with AI"
+            aria-busy={writing} disabled={writing} onClick={() => void write()}
+            className="press-dim hit absolute top-1/2 right-1 grid size-6 -translate-y-1/2 place-items-center rounded-full text-fg2 coarse:size-9 enabled:hover:bg-hover enabled:hover:text-fg disabled:cursor-default">
+            <SparklesIcon aria-hidden="true" className={clsx('size-3.5 shrink-0', writing && 'animate-pulse text-accent')} />
+          </button>
+        </div>
         <Primary disabled={!message.trim() || busy} onClick={() => void go()}>{busy ? 'Committing…' : 'Commit'}</Primary>
       </div>
     </>

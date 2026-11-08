@@ -1295,6 +1295,11 @@ export type Action =
   /** forget a space (shepherdr space remove): its folder and code stay on disk, its coordinator closes, and its open
       tasks and chat come back if it is added again; refused while one of its tasks is working */
   | { type: 'space-remove'; place: string }
+  /** Herdr's Changes panel's Commit, for the space's folder: everything (git add -A), with this message */
+  | { type: 'space-commit'; place: string; message: string }
+  /** that box's ✨: an agent CLI on the space's machine writes the message from the uncommitted changes, in the
+      Conventional Commits style; the reply carries it ({ message }), and nothing is committed */
+  | { type: 'space-commit-message'; place: string }
   /** the sidebar's order, dragged by the human: the machines (under 'all'), or one machine's spaces
       (under its id), or a section's (under its id: 'pinned' for Pinned), or the sections at the top ('sections') or in a
       machine ('sections:<machine id>'). Kept by the machine the screen talks to, never sent on to another */

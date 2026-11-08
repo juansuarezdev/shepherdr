@@ -15,6 +15,7 @@ const { READ, withMove, withSection, withoutSection, withSectionName, withIcon, 
 import type { Compat } from "./compat.ts";
 import { worktreeAct } from "./worktrees.ts";
 import { execTemplate } from "./spaces.ts";
+import * as CM from "./commit-message.ts";
 import * as MA from "../core/machine-add.js";
 import { exec } from "./model.ts";
 import { closeSaved, renameSaved, orderSaved, withoutSpace, splitId } from "./saved-spaces.ts";
@@ -395,6 +396,14 @@ export async function act(hub: Hub, b: any, compat: Compat): Promise<unknown> {
     const r = await exec(hub, ["sh", "-c", 'cd "$1" && cd "$(git rev-parse --show-toplevel)" && git add -A && git commit -m "$2"', "commit", sp.folder, message], sp.machine ?? null);
     if (r.code !== 0) throw new Error(`Commit failed: ${(r.stderr || r.stdout).trim().split("\n").pop() ?? ""}`);
     return { ok: true };
+  }
+  if (b?.type === "space-commit-message" && typeof b.place === "string") {
+    // the commit box's sparkles: an agent CLI on the space's machine writes the message from its uncommitted changes,
+    // in the Conventional Commits style; it goes back into the box (nothing is committed)
+    const sp = compat.spaceOf(b.place);
+    if (!sp) throw new Error("That space isn't here any more.");
+    const { text, limited } = await CM.changes(hub, sp.folder, sp.machine ?? null);
+    return { ok: true, message: await CM.write(hub, sp.folder, sp.machine ?? null, text, limited) };
   }
   if (b?.type === "tab-switch" && typeof b.chat === "string") {
     // a tab's Switch agent (3.0's: restart.sh with the agent's own command), and Restart for an agent that isn't Claude
