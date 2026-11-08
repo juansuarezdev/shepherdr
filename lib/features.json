@@ -566,7 +566,8 @@
       ],
       "herdr": {
         "mods": [
-          "coordinator"
+          "coordinator",
+          "changes"
         ]
       },
       "web": {
