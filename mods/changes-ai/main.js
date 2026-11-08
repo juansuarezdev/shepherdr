@@ -2,7 +2,7 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, Scrollbar, v_virtual_list } from "gpui-base";
 import { spaces, panes, focused, exec, readTextFile, watchFolder, theme, settings } from "herdr";
 
-const RULES = `You write one git commit message in the Conventional Commits style, and nothing else. Answer with the message only: no introduction, no explanation of your choice, no notes after it, no code fence, no quotes.
+const RULES = `You write one git commit message in the Conventional Commits style, and nothing else. Answer with the message only: no introduction, no explanation of your choice, no notes after it, no code fence, no quotes, no bulleted summary, no questions, no options to pick from.
 
     <type>[optional scope][!]: <description>
 
@@ -15,7 +15,8 @@ const RULES = `You write one git commit message in the Conventional Commits styl
 - !: after the type or scope when the change breaks compatibility; then a footer "BREAKING CHANGE: what breaks"
 - description: imperative mood, lowercase, no full stop, at most 72 characters
 - body, optional: a blank line after the description, then why the change is made, wrapped at 72 characters
-- footer, optional: references and such, after a blank line: "Refs: SHEP-12"`;
+- footer, optional: references and such, after a blank line: "Refs: SHEP-12"
+- if the changes are mostly untracked files or too many files to describe, write one short subject line such as "feat: add initial project files" or "chore: add generated files"; do not list or analyze the files`;
 
 function cleanMessage(text) {
   let out = String(text ?? "").replace(/\r\n/g, "\n").trim();
@@ -189,6 +190,19 @@ export default class Changes extends View {
     cx.notify();
   }
 
+  summarizeStatus(status) {
+    const lines = status.split("\n").filter(Boolean);
+    if (lines.length <= 40) return status;
+    const counts = {};
+    for (const line of lines) {
+      const st = line.slice(0, 2).trim().replace(/\?\?/, "A") || "?";
+      counts[st] = (counts[st] ?? 0) + 1;
+    }
+    const summary = Object.entries(counts).map(([s, n]) => `${n} ${s}`).join(", ");
+    const sample = lines.slice(0, 30).join("\n");
+    return `${lines.length} files changed (${summary})\n--- first ${Math.min(30, lines.length)} ---\n${sample}\n... and ${lines.length - 30} more`;
+  }
+
   async gatherChanges(root, on) {
     const git = (args) => exec("git", [...READ, ...args], { cwd: root, on });
     const status = await git(["status", "--porcelain=v1", "--untracked-files=all"]);
@@ -197,16 +211,17 @@ export default class Changes extends View {
     const hasHead = (await git(["rev-parse", "--verify", "HEAD"])).code === 0;
     const stat = await git(["diff", ...(hasHead ? ["HEAD"] : []), "--stat", "--no-color"]);
     const diff = await git(["diff", ...(hasHead ? ["HEAD"] : []), "--no-color"]);
-    return [status.stdout.trim(), stat.stdout.trim(), diff.stdout.trim()].filter(Boolean).join("\n").slice(0, 16_000);
+    return [this.summarizeStatus(status.stdout.trim()), stat.stdout.trim(), diff.stdout.trim()].filter(Boolean).join("\n").slice(0, 16_000);
   }
 
   async runAgent(root, on, changes) {
     const have = await exec("sh", ["-c", 'for c in "$@"; do command -v "$c" >/dev/null 2>&1 && echo "$c"; done', "agents", "claude", "codex"], { cwd: root, on });
     const claude = have.stdout.includes("claude"), codex = have.stdout.includes("codex");
     if (!claude && !codex) throw new Error("Writing a commit message needs Claude Code or Codex on that machine.");
+    const big = changes.length > 4000 || changes.split("\n").length > 200;
     const prompt = `The changes${changes.length >= 16_000 ? " (cut short)" : ""}:\n\n${changes}`;
     const r = claude
-      ? await exec("claude", ["-p", "--model", "haiku", "--append-system-prompt", RULES, prompt], { cwd: root, on })
+      ? await exec("claude", ["-p", ...(big ? [] : ["--model", "haiku"]), "--append-system-prompt", RULES, prompt], { cwd: root, on })
       : await exec("codex", ["exec", "--sandbox", "read-only", `${RULES}\n\n${prompt}`], { cwd: root, on });
     if (r.code !== 0) throw new Error(`Writing a commit message failed: ${(r.stderr || r.stdout).trim().split("\n").pop() ?? ""}`);
     const message = cleanMessage(r.stdout);

@@ -8,7 +8,8 @@ import { exec, sh } from "./model.ts";
 
 /** The guide's rules, as short as a one-shot prompt can hold them; then only the message back. */
 export const RULES = `You write one git commit message in the Conventional Commits style, and nothing else. Answer with the
-message only: no introduction, no explanation of your choice, no notes after it, no code fence, no quotes.
+message only: no introduction, no explanation of your choice, no notes after it, no code fence, no quotes, no
+bulleted summary, no questions, no options to pick from.
 
     <type>[optional scope][!]: <description>
 
@@ -24,7 +25,10 @@ message only: no introduction, no explanation of your choice, no notes after it,
 - description: imperative mood, lowercase, no full stop, at most 72 characters
 - body, optional: a blank line after the description, then why the change is made (never that something is unclear),
   wrapped at 72 characters
-- footer, optional: references and such, after a blank line: "Refs: SHEP-12"`;
+- footer, optional: references and such, after a blank line: "Refs: SHEP-12"
+- if the changes are mostly untracked files or too many files to describe, write one short subject line such as
+  "feat: add initial project files" or "chore: add generated files"; do not list or analyze the files`;
+
 
 /** What the panel sends as the prompt's last part: the space's changes; one too big says it is cut short. */
 export function prompt(changes: string, limited = false): string {
@@ -61,13 +65,28 @@ const CHANGES = 'cd "$1" 2>/dev/null && cd "$(git rev-parse --show-toplevel)" 2>
   'fi\ntrue';
 const MAX_DIFF = 16_000;
 
+const MAX_FILES = 40;
+function summarizeFiles(files: string): string {
+  const lines = files.split("\n").filter(Boolean);
+  if (lines.length <= MAX_FILES) return files;
+  const counts: Record<string, number> = {};
+  for (const line of lines) {
+    const status = line.slice(0, 2).trim().replace(/\?\?/, "A").replace(/\S/g, (c) => c) || "?";
+    counts[status] = (counts[status] ?? 0) + 1;
+  }
+  const summary = Object.entries(counts).map(([s, n]) => `${n} ${s}`).join(", ");
+  const sample = lines.slice(0, 30).join("\n");
+  return `${lines.length} files changed (${summary})\n--- first ${Math.min(30, lines.length)} ---\n${sample}\n... and ${lines.length - 30} more`;
+}
+
 export async function changes(hub: Hub, folder: string, machine: string | null): Promise<{ text: string; limited: boolean }> {
   const r = await sh(hub, CHANGES, ["changes", folder], machine);
   if (r.code !== 0) throw new Error("That folder isn't a git repository.");
   // the script's three parts: the files' letters, the stat line, the diff
   const [files = "", stat = "", diff = ""] = r.stdout.split("@@@");
   if (!files.trim() && !diff.trim()) throw new Error("Nothing to commit yet.");
-  let text = [files.trim(), stat.trim(), diff.trim()].filter(Boolean).join("\n");
+  const summarized = summarizeFiles(files.trim());
+  let text = [summarized, stat.trim(), diff.trim()].filter(Boolean).join("\n");
   const limited = text.length > MAX_DIFF;
   if (limited) text = text.slice(0, MAX_DIFF);
   return { text, limited };
@@ -85,10 +104,12 @@ async function agentThere(hub: Hub, machine: string | null): Promise<"claude" | 
 export async function write(hub: Hub, folder: string, machine: string | null, changes: string, limited = false): Promise<string> {
   const agent = await agentThere(hub, machine);
   if (!agent) throw new Error("Writing a commit message needs Claude Code or Codex on that machine.");
+  // big or messy changes need the stronger model; small ones can use haiku for speed
+  const big = changes.length > 4000 || changes.split("\n").length > 200;
   const r = agent === "claude"
     // -p: print mode, one answer, no tools asked of the person; --append-system-prompt: the rules, which weigh more
-    // than the diff; haiku: quick, and enough for this
-    ? await exec(hub, ["claude", "-p", "--model", "haiku", "--append-system-prompt", RULES, prompt(changes, limited)], machine, 180)
+    // than the diff; omit --model for big changes to use the default (stronger) model, else haiku for speed
+    ? await exec(hub, ["claude", "-p", ...(big ? [] : ["--model", "haiku"]), "--append-system-prompt", RULES, prompt(changes, limited)], machine, 180)
     // codex exec: its one-shot, read-only sandbox (it has nothing to change here); the message is its last words
     : await exec(hub, ["codex", "exec", "--sandbox", "read-only", ask(changes, limited)], machine, 180);
   if (r.code !== 0) throw new Error(`Writing a commit message failed: ${(r.stderr || r.stdout).trim().split("\n").pop() ?? ""}`);
